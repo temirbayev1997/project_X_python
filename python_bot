@@ -1,0 +1,84 @@
+import telebot
+from telebot import types
+import psycopg2
+
+db_params = {
+    'dbname': 'your_db_name',
+    'user': 'your_username',
+    'password': 'your_password',
+    'host': 'your_host',
+    'port': 'your_port'
+}
+
+def execute_query(query, values=None):
+    conn = psycopg2.connect(**db_params)
+    cursor = conn.cursor()
+    if values:
+        cursor.execute(query, values)
+    else:
+        cursor.execute(query)
+    conn.commit()
+    result = cursor.fetchall()
+    conn.close()
+    return result
+
+bot_token = "6801426896:AAEe_QBTudQG2xBjR408CTgKjemgsYdIJ2g"
+bot = telebot.TeleBot(bot_token)
+
+
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    markup = types.ReplyKeyboardMarkup()
+    reg = types.KeyboardButton("/reg")
+    login = types.KeyboardButton("/login")
+    markup.add(reg, login)
+    bot.reply_to(message, "Привет! Я бот. Как дела?", reply_markup=markup)
+
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    markup = types.InlineKeyboardMarkup()
+    button = types.InlineKeyboardButton(text="Один", url="https://t.me/begemot_robot")
+    markup.add(button)
+    bot.reply_to(message, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
+
+user_data = {}
+
+# регистор
+@bot.message_handler(commands=['reg'])
+def handle_reg(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    bt1 = types.KeyboardButton(text="Логин")
+    bt2 = types.KeyboardButton(text="Пароль")
+    markup.row(bt1, bt2)
+    bot.send_message(message.chat.id, 'Выберите логин с помощью кнопок', reply_markup=markup)
+    user_data[message.chat.id] = {"step": "login"}
+
+# логин для пользователь
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login")
+def handle_login(message):
+    user_data[message.chat.id]["login"] = message.text
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    bt1 = types.KeyboardButton(text="Логин")
+    bt2 = types.KeyboardButton(text="Пароль")
+    markup.row(bt1, bt2)
+    bot.send_message(message.chat.id, 'Выберите пароль с помощью кнопок', reply_markup=markup)
+    user_data[message.chat.id]["step"] = "password"
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password")
+def handle_password(message):
+    # Сохраняем введенный пароль
+    user_data[message.chat.id]["password"] = message.text
+    # Сохраняем данные в базе данных (это просто пример)
+    login = user_data[message.chat.id]["login"]
+    password = user_data[message.chat.id]["password"]
+    query = "INSERT INTO users (login, password) VALUES (%s, %s)"
+    execute_query(query, (login, password))
+    bot.send_message(message.chat.id, f'Вы зарегистрированы. Логин: {login}, Пароль: {password}')
+    # Завершаем процесс регистрации, удаляем данные о пользователе
+    del user_data[message.chat.id]
+
+if __name__ == "__main__": 
+    bot.polling(none_stop=True)
+
+# https://chat.openai.com/share/cc10f6bd-1691-4b0c-85f0-ede483cc5ebd 
+# тут для тебя мади как подключать базу
