@@ -86,19 +86,11 @@ def handle_password(message):
     user_data[message.chat.id]["password"] = message.text
     login = user_data[message.chat.id]["login"]
     password = user_data[message.chat.id]["password"]
+    
     query = "INSERT INTO users (login, password) VALUES (%s, %s)"
     execute_query(query, (login, password))
+    
     bot.send_message(message.chat.id, f'Вы зарегистрированы. Логин: {login}, Пароль: {password}')
-    del user_data[message.chat.id]
-
-@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password")
-def handle_password(message):
-    user_data[message.chat.id]["password"] = message.text
-    login = user_data[message.chat.id]["login"]
-    password = user_data[message.chat.id]["password"]
-    query = "INSERT INTO users (login, password) VALUES (%s, %s)"
-    execute_query(query, (login, password))
-    bot.send_message(message.chat.id, f'Ваш логин: {login}\nВаш пароль: {password}')
     del user_data[message.chat.id]
 
 
