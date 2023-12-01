@@ -4,11 +4,11 @@ import psycopg2
 import logging
 
 db_params = {
-    'dbname': 'название_вашей_базы_данных',
-    'user': 'ваше_имя_пользователя',
-    'password': 'ваш_пароль',
-    'host': 'адрес_хоста',
-    'port': 'порт'
+    'dbname': 'postgres',
+    'user': 'postgres',
+    'password': '123',
+    'host': 'localhost',
+    'port': '5432'
 }
 
 logging.basicConfig(filename='bot.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
@@ -104,3 +104,5 @@ def handle_password(message):
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True)
+
+    
