@@ -4,11 +4,11 @@ import psycopg2
 import logging
 
 db_params = {
-    'dbname': 'название_вашей_базы_данных',
-    'user': 'ваше_имя_пользователя',
-    'password': 'ваш_пароль',
-    'host': 'адрес_хоста',
-    'port': 'порт'
+    'dbname': 'postgres',
+    'user': 'postgres',
+    'password': '123',
+    'host': 'localhost',
+    'port': '5432'
 }
 
 logging.basicConfig(filename='bot.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
@@ -86,21 +86,53 @@ def handle_password(message):
     user_data[message.chat.id]["password"] = message.text
     login = user_data[message.chat.id]["login"]
     password = user_data[message.chat.id]["password"]
+    
     query = "INSERT INTO users (login, password) VALUES (%s, %s)"
     execute_query(query, (login, password))
+    
     bot.send_message(message.chat.id, f'Вы зарегистрированы. Логин: {login}, Пароль: {password}')
     del user_data[message.chat.id]
 
+
+@bot.message_handler(commands=['login'])
+def handle_login_command(message):
+    bot.send_message(message.chat.id, 'Введите логин')
+    user_data[message.chat.id] = {"step": "login"}
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login")
+def handle_login_input(message):
+    login = message.text.strip()
+    user_exists = check_user_exists(login)
+    if user_exists:
+        bot.send_message(message.chat.id, 'Введите пароль')
+        user_data[message.chat.id]["login"] = login
+        user_data[message.chat.id]["step"] = "password"
+    else:
+        bot.send_message(message.chat.id, 'Пользователь с таким логином не найден. Пожалуйста, зарегистрируйтесь.')
+
+
 @bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password")
 def handle_password(message):
-    user_data[message.chat.id]["password"] = message.text
+    password = message.text
     login = user_data[message.chat.id]["login"]
-    password = user_data[message.chat.id]["password"]
-    query = "INSERT INTO users (login, password) VALUES (%s, %s)"
-    execute_query(query, (login, password))
-    bot.send_message(message.chat.id, f'Ваш логин: {login}\nВаш пароль: {password}')
-    del user_data[message.chat.id]
+    
+    user_authenticated = check_user_password(login, password)
+    if user_authenticated:
+        bot.send_message(message.chat.id, 'Вы успешно вошли!')
+    else:
+        bot.send_message(message.chat.id, 'Неправильный пароль. Попробуйте снова или зарегистрируйтесь.')
 
+def check_user_exists(login):
+    query = "SELECT * FROM users WHERE login = %s"
+    result = execute_query(query, (login,))
+    return bool(result)
+
+def check_user_password(login, password):
+    query = "SELECT * FROM users WHERE login = %s AND password = %s"
+    result = execute_query(query, (login, password))
+    return bool(result)
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True)
+
+    
