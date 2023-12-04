@@ -57,11 +57,12 @@ def get_product_by_id(product_id):
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     markup = types.ReplyKeyboardMarkup()
+    get_product = types.KeyboardButton('/get_product')
     reg = types.KeyboardButton("/reg")
     login = types.KeyboardButton("/login")
+    login_button = types.KeyboardButton('/login_button') 
     help = types.KeyboardButton('/help')
-    login_button = types.KeyboardButton('/login_button')  # Новая кнопка
-    markup.add(reg, login, help, login_button)  # Добавляем новую кнопку
+    markup.add(reg, login, help, login_button, get_product) 
     bot.reply_to(message, "Привет! Я бот. Как дела?", reply_markup=markup)
 
 @bot.message_handler(commands=['help'])
@@ -72,6 +73,30 @@ def handle_help(message):
     bot.reply_to(message, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
 
 @bot.message_handler(commands=['reg'])
+def handle_reg(message):
+    bot.send_message(message.chat.id, 'Введите логин')
+    user_data[message.chat.id] = {"step": "login"}
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login")
+def handle_login(message):
+    user_data[message.chat.id]["login"] = message.text
+    bot.send_message(message.chat.id, 'Введите пароль')
+    user_data[message.chat.id]["step"] = "password"
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password")
+def handle_password(message):
+    user_data[message.chat.id]["password"] = message.text
+    login = user_data[message.chat.id]["login"]
+    password = user_data[message.chat.id]["password"]
+    
+    query = "INSERT INTO users (login, password) VALUES (%s, %s)"
+    execute_query(query, (login, password))
+    
+    bot.send_message(message.chat.id, f'Вы зарегистрированы. Логин: {login}, Пароль: {password}')
+    del user_data[message.chat.id]
+
+
+@bot.message_handler(commands=['login'])
 def handle_reg(message):
     bot.send_message(message.chat.id, 'Введите логин')
     user_data[message.chat.id] = {"step": "login"}
@@ -129,3 +154,4 @@ def check_user_password(login, password):
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True)
+    
