@@ -108,15 +108,44 @@ def handle_login_button(message):
     bot.reply_to(message, "Введите свой логин и пароль для входа:", reply_markup=markup)
     user_data[message.chat.id] = {"step": "login_button"}
 
-@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
-def handle_login_button_input(message):
-    login, password = message.text.strip().split()
-    user_authenticated = check_user_password(login, password)
-    
-    if user_authenticated:
-        bot.send_message(message.chat.id, f'Вы успешно вошли как {login}!')
+def get_all_products():
+    query = "SELECT id, name, price FROM products"
+    result = execute_query(query)
+    return result
+
+# Функция для получения товара по его ID из таблицы products
+def get_product_by_id(product_id):
+    query = "SELECT id, name, price FROM products WHERE id = %s"
+    result = execute_query(query, (product_id,))
+    return result[0] if result else None
+
+# Обработчик команды /get_all_products для получения списка всех товаров
+@bot.message_handler(commands=['get_all_products'])
+def handle_get_all_products(message):
+    products = get_all_products()
+    if products:
+        all_products_info = "\n".join([f"ID товара: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}\n" for product in products])
+        bot.send_message(message.chat.id, all_products_info)
     else:
-        bot.send_message(message.chat.id, 'Неправильный логин или пароль. Попробуйте снова или зарегистрируйтесь.')
+        bot.send_message(message.chat.id, 'Товары не найдены')
+
+@bot.message_handler(commands=["catalog","basket"])
+def catalog_and_basket(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    mrk = types.KeyboardButton("Каталог")
+    mrk1 = types.KeyboardButton("Корзина")
+    markup.add(mrk,mrk1)
+    bot.send_message(message.chat.id, "Выберите в меню,что вам интересно", reply_markup=markup)
+@bot.message_handler(content_types=['text'])
+def catalog_back(message):
+    if message.text == "Каталог":
+        markup1 = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        mar = types.KeyboardButton("Одежда")
+        mar2 = types.KeyboardButton("Назад в меню")
+        markup1.add(mar,mar2)
+        bot.send_message(message.chat.id,"Выберите,что вам нужно,если хотите вернуться в меню просто нажмите кнопку 'Назад в меню' ",reply_markup=markup1)
+    elif message.text == "Назад в меню":
+        pass
 
 def is_login_unique(login):
 
