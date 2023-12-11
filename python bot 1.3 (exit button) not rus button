@@ -51,26 +51,18 @@ conn.commit()
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    user_id = message.chat.id
-    
-    if user_exists_in_database(user_id):
-        # Если пользователь есть в базе данных, отобразить его профиль
-        display_profile_options(user_id)
-    else:
-        # Если пользователя нет в базе данных, предложить ему зарегистрироваться
-        bot.send_message(user_id, 'Вы не зарегистрированы. Для начала работы зарегистрируйтесь.')
-
-# Добавим функцию для проверки наличия пользователя в базе данных по его Telegram ID
-def user_exists_in_database(user_id):
-    query = "SELECT * FROM users WHERE telegram_id = %s"
-    result = execute_query(query, (user_id,))
-    return bool(result)
+    markup = types.ReplyKeyboardMarkup()
+    reg = types.KeyboardButton("/reg")
+    help_button = types.KeyboardButton('/help')
+    login_button = types.KeyboardButton('/login')
+    markup.add(reg, help_button, login_button)  
+    bot.reply_to(message, 'Добро пожаловать! Чтобы начать, зарегистрируйтесь.', reply_markup=markup)
 
 
 @bot.message_handler(commands=['login_button'])
 def handle_login_button_start(message):
     markup = types.ReplyKeyboardMarkup()
-    login = types.KeyboardButton("/login_button")
+    login = types.KeyboardButton("/login")
     logout = types.KeyboardButton('/logout')
     user_id = message.chat.id
     if user_id in user_data:
@@ -81,15 +73,6 @@ def handle_login_button_start(message):
     markup.add(logout)
     bot.reply_to(message, "Введите свой логин:", reply_markup=markup)
     user_data[message.chat.id] = {"step": "login_button"}
-
-@bot.message_handler(commands=['logout'])
-def handle_logout(message):
-    user_id = message.chat.id
-    if user_id in user_data:
-        del user_data[user_id]
-        bot.send_message(user_id, 'Вы вышли из режима логина.')
-    else:
-        bot.send_message(user_id, 'Вы еще не в режиме логина.')
 
 @bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
 def handle_login_button_input(message):
@@ -180,7 +163,7 @@ def handle_password(message):
 def handle_login_button_start(message):
     bot.send_message(message, 'Выберите опцию:')
     markup = types.ReplyKeyboardMarkup()
-    login = types.KeyboardButton("/login_button")
+    login = types.KeyboardButton("/login")
     catalog_button = types.KeyboardButton(text='/catalog')
     cart_button = types.KeyboardButton(text='/cart')
     favorites_button = types.KeyboardButton(text = '/favorites')
@@ -193,6 +176,15 @@ def handle_login_button_start(message):
     bot.reply_to(message, "Введите свой логин:", reply_markup=markup)
     user_data[message.chat.id] = {"step": "login_button"}
 
+
+@bot.message_handler(commands=['logout'])
+def handle_logout(message):
+    user_id = message.chat.id
+    if user_id in user_data:
+        del user_data[user_id]
+        bot.send_message(user_id, "Вы успешно вышли из аккаунта.")
+    else:
+        bot.send_message(user_id, "Вы не вошли в аккаунт.")
 
 
 
