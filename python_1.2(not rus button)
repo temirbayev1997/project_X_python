@@ -1,0 +1,332 @@
+import telebot
+from telebot import types
+import psycopg2
+import logging
+import base64 
+import io
+db_params = {
+    'dbname': 'postgres',
+    'user': 'postgres',
+    'password': '123',
+    'host': 'localhost',
+    'port': '5432'
+}
+
+logging.basicConfig(filename='bot.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+
+bot_token = "6801426896:AAEe_QBTudQG2xBjR408CTgKjemgsYdIJ2g"
+bot = telebot.TeleBot(bot_token)
+user_data = {}
+
+def execute_query(query, values=None):
+    conn = psycopg2.connect(**db_params)
+    cursor = conn.cursor()
+    try:
+        if values:
+            cursor.execute(query, values)
+        else:
+            cursor.execute(query)
+        conn.commit()
+        result = cursor.fetchall()
+    except Exception as e:
+        conn.rollback()
+        logging.exception("Произошло исключение: %s", str(e))
+        result = None
+    finally:
+        conn.close()
+    return result
+
+
+conn = psycopg2.connect(**db_params)
+cur = conn.cursor()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        pic bytea
+    )
+""")
+conn.commit()
+
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    markup = types.ReplyKeyboardMarkup()
+    reg = types.KeyboardButton("/reg")
+    help_button = types.KeyboardButton('/help')
+    login_button = types.KeyboardButton('/login_button')
+    markup.add(reg, help_button, login_button)  
+    bot.reply_to(message, 'Добро пожаловать! Чтобы начать, зарегистрируйтесь.', reply_markup=markup)
+
+
+@bot.message_handler(commands=['login_button'])
+def handle_login_button_start(message):
+    markup = types.ReplyKeyboardMarkup()
+    login = types.KeyboardButton("/login_button")
+    markup.add(login)
+    bot.reply_to(message, "Введите свой логин:", reply_markup=markup)
+    user_data[message.chat.id] = {"step": "login_button"}
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
+def handle_login_button_input(message):
+    login = message.text.strip()
+    if is_login_unique(login):
+        bot.send_message(message.chat.id, 'Пользователь с таким логином не найден. Пожалуйста, зарегистрируйтесь или введите другой логин.')
+        return
+
+    user_data[message.chat.id]["login"] = login
+    bot.send_message(message.chat.id, 'Введите пароль для входа:')
+    user_data[message.chat.id]["step"] = "password_button"
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password_button")
+def handle_password_button_input(message):
+    login = user_data[message.chat.id]["login"]
+    password = message.text.strip()
+
+    if check_user_password(login, password):
+        bot.send_message(message.chat.id, 'Вход выполнен успешно!')
+    else:
+        bot.send_message(message.chat.id, 'Неверный логин или пароль.')
+
+
+
+# Проверка наличия пользователя в базе данных по ID Telegram
+def user_exists_in_database(user_id):
+    query = "SELECT * FROM users WHERE telegram_id = %s"
+    result = execute_query(query, (user_id,))
+    return bool(result)
+
+# Отображение опций профиля
+def display_profile_options(user_id):
+    markup = types.ReplyKeyboardMarkup()
+    catalog_button = types.KeyboardButton(text='/catalog')
+    cart_button = types.KeyboardButton(text='/cart')
+    favorites_button = types.KeyboardButton(text = '/favorites')
+    markup.add(catalog_button, cart_button, favorites_button)
+    bot.send_message(user_id, 'Выберите опцию:', reply_markup=markup)
+    help_button = types.KeyboardButton('/help')
+    add_to_cart_button = types.KeyboardButton('/add_to_cart')
+    favorites_button = types.KeyboardButton('/favorites')
+    add_to_favorites_button = types.KeyboardButton('/add_to_favorites')
+    markup.add(help_button, catalog_button,cart_button, add_to_cart_button, favorites_button,add_to_favorites_button)  
+
+
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    markup = types.InlineKeyboardMarkup()
+    button = types.InlineKeyboardButton(text="Тех поддержка", url="https://t.me/@llosintll")
+    markup.add(button)
+    bot.reply_to(message, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
+
+
+@bot.message_handler(commands=['reg'])
+def handle_reg(message):
+    bot.send_message(message.chat.id, 'Введите логин')
+    user_data[message.chat.id] = {"step": "login"}
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id].get("step") == "login")
+def handle_login(message):
+    login = message.text.strip()
+    if not is_login_unique(login):
+        bot.send_message(message.chat.id, 'Пользователь с таким логином уже существует. Введите другой логин.')
+        return
+    user_data[message.chat.id].setdefault("login", login)
+    bot.send_message(message.chat.id, 'Введите пароль')
+    user_data[message.chat.id]["step"] = "password"
+
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id].get("step") == "password")
+def handle_password(message):
+    if "step" not in user_data.get(message.chat.id, {}):
+        bot.send_message(message.chat.id, 'Please start the registration process again.')
+        return
+
+    user_data[message.chat.id]["password"] = message.text
+    login = user_data[message.chat.id]["login"]
+    password = user_data[message.chat.id]["password"]
+    
+    query = "INSERT INTO users (login, password) VALUES (%s, %s)"
+    execute_query(query, (login, password))
+    
+    bot.send_message(message.chat.id, f'Вы зарегистрированы. Логин: {login}, Пароль: {password}')
+    del user_data[message.chat.id]
+
+
+@bot.message_handler(commands=['login_button'])
+def handle_login_button_start(message):
+    bot.send_message(message, 'Выберите опцию:')
+    markup = types.ReplyKeyboardMarkup()
+    login = types.KeyboardButton("/login_button")
+    catalog_button = types.KeyboardButton(text='/catalog')
+    cart_button = types.KeyboardButton(text='/cart')
+    favorites_button = types.KeyboardButton(text = '/favorites')
+    help_button = types.KeyboardButton('/help')
+    add_to_cart_button = types.KeyboardButton('/add_to_cart')
+    favorites_button = types.KeyboardButton('/favorites')
+    add_to_favorites_button = types.KeyboardButton('/add_to_favorites')
+    markup.add(login, add_to_favorites_button, add_to_cart_button, help_button, catalog_button, cart_button, favorites_button)
+    bot.reply_to(message, "Введите свой логин:", reply_markup=markup)
+    user_data[message.chat.id] = {"step": "login_button"}
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
+def handle_login_button_input(message):
+    login = message.text.strip()
+    if is_login_unique(login):
+        bot.send_message(message.chat.id, 'Пользователь с таким логином не найден. Пожалуйста, зарегистрируйтесь или введите другой логин.')
+        return
+
+    user_data[message.chat.id]["login"] = login
+    bot.send_message(message.chat.id, 'Введите пароль для входа:')
+    user_data[message.chat.id]["step"] = "password_button"
+
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password_button")
+def handle_password_button_input(message):
+    login = user_data[message.chat.id]["login"]
+    password = message.text.strip()
+
+    if check_user_password(login, password):
+        bot.send_message(message.chat.id, 'Вход выполнен успешно!')
+    else:
+        bot.send_message(message.chat.id, 'Неверный логин или пароль.')
+
+
+
+
+def get_product_by_id(product_id):
+    query = "SELECT id, name, price FROM products WHERE id = %s"
+    result = execute_query(query, (product_id,))
+    return result[0] if result else None
+
+def display_catalog(chat_id):
+    products = get_all_products()
+    if products:
+        catalog_info = "\n".join([f"ID товара: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}\n" for product in products])
+        bot.send_message(chat_id, catalog_info)
+    else:
+        bot.send_message(chat_id, 'Товары не найдены')
+
+
+@bot.message_handler(commands=['catalog'])
+def handle_catalog(message):
+    display_catalog(message.chat.id)
+
+
+@bot.message_handler(commands=['favorites'])
+def handle_favorites(message):
+    user_id = message.chat.id
+    favorites = user_data.get(user_id, {}).get('favorites', [])
+    
+    if favorites:
+        favorites_info = "\n".join([f"ID товара: {product['id']}\nНазвание: {product['name']}\nЦена: {product['price']}\n" for product in favorites])
+        bot.send_message(message.chat.id, "Избранные товары:\n" + favorites_info)
+    else:
+        bot.send_message(message.chat.id, 'Избранных товаров нет')
+
+
+@bot.message_handler(commands=['cart'])
+def handle_cart(message):
+    user_id = message.chat.id
+    cart = user_data.get(user_id, {}).get('cart', [])
+    
+    if cart:
+        cart_info = "\n".join([f"ID товара: {product['id']}\nНазвание: {product['name']}\nЦена: {product['price']}\n" for product in cart])
+        bot.send_message(message.chat.id, "Корзина:\n" + cart_info)
+    else:
+        bot.send_message(message.chat.id, 'Корзина пуста')
+
+
+@bot.message_handler(commands=['get_product'])
+def handle_duct(message):
+    bot.send_message(message.chat.id, 'Введите ID товара:')
+    bot.register_next_step_handler(message, process_product_id)
+
+def process_product_id(message):
+    product_id = message.text.strip()
+    product = get_product_by_id_with_photo(product_id)
+    
+    if product:
+        product_info = f"ID товара: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}\nФото: {product[3]}"
+        bot.send_message(message.chat.id, product_info)
+
+        if product[3]:
+            bot.send_photo(message.chat.id, open(product[3], 'rb'), caption='Фото товара')
+        else:
+            bot.send_message(message.chat.id, 'У этого товара нет изображения')
+    else:
+        bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
+
+
+def get_product_by_id_with_photo(product_id):
+    cur.execute("SELECT * FROM products_msi WHERE id = %s", (product_id,))
+    return cur.fetchone()
+
+
+@bot.message_handler(commands=['add_to_favorites'])
+def handle_add_to_favorites(message):
+    user_id = message.chat.id
+    bot.send_message(message.chat.id, 'Введите ID товара для добавления в избранное:')
+    bot.register_next_step_handler(message, process_add_to_favorites)
+
+def process_add_to_favorites(message):
+    user_id = message.chat.id
+    product_id = message.text.strip()
+
+    product = get_product_by_id(product_id)
+    if product:
+        favorites = user_data.setdefault(user_id, {}).setdefault('favorites', [])
+        if not any(p['id'] == product_id for p in favorites):
+            favorites.append({
+                'id': product[0],
+                'name': product[1],
+                'price': product[2]
+            })
+            bot.send_message(message.chat.id, 'Товар добавлен в избранное')
+        else:
+            bot.send_message(message.chat.id, 'Товар уже в избранном')
+    else:
+        bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
+
+
+@bot.message_handler(commands=['add_to_cart'])
+def handle_add_to_cart(message):
+    user_id = message.chat.id
+    bot.send_message(message.chat.id, 'Введите ID товара для добавления в корзину:')
+    bot.register_next_step_handler(message, process_add_to_cart)
+
+def process_add_to_cart(message):
+    user_id = message.chat.id
+    product_id = message.text.strip()
+
+    product = get_product_by_id(product_id)
+    if product:
+        cart = user_data.setdefault(user_id, {}).setdefault('cart', [])
+        if not any(p['id'] == product_id for p in cart):
+            cart.append({
+                'id': product[0],
+                'name': product[1],
+                'price': product[2]
+            })
+            bot.send_message(message.chat.id, 'Товар добавлен в корзину')
+        else:
+            bot.send_message(message.chat.id, 'Товар уже в корзине')
+    else:
+        bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
+
+def get_product_by_id(product_id):
+    query = "SELECT id, name, price FROM products WHERE id = %s"
+    result = execute_query(query, (product_id,))
+    return result[0] if result else None
+
+def is_login_unique(login):
+    query = "SELECT * FROM users WHERE login = %s"
+    result = execute_query(query, (login,))
+    return not result  
+
+def check_user_password(login, password):
+    query = "SELECT * FROM users WHERE login = %s AND password = %s"
+    result = execute_query(query, (login, password))
+    return result is not None
+
+if __name__ == "__main__": 
+    bot.polling(none_stop=True)
