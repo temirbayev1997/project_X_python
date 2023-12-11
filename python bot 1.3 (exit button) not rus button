@@ -85,7 +85,7 @@ def handle_login_button_input(message):
     bot.send_message(message.chat.id, 'Введите пароль для входа:')
     user_data[message.chat.id]["step"] = "password_button"
 
-@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "password_button")
+@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
 def handle_password_button_input(message):
     login = user_data[message.chat.id]["login"]
     password = message.text.strip()
@@ -345,7 +345,8 @@ def is_login_unique(login):
 def check_user_password(login, password):
     query = "SELECT * FROM users WHERE login = %s AND password = %s"
     result = execute_query(query, (login, password))
-    return result is not None
+    return bool(result) 
+
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True)
