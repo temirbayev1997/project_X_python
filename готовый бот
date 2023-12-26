@@ -1,9 +1,14 @@
-# починить  и неизв команды
-import telebot
+import telebot 
 from telebot import types
-import psycopg2
-import logging
+# модуль для телеграмм бота
 
+import psycopg2
+# база данных постгрес
+
+import logging
+# модуль логгинг
+
+# база данных 
 db_params = {
     'dbname': 'telebot',
     'user': 'postgres',
@@ -11,14 +16,17 @@ db_params = {
     'host': 'localhost',
     'port': '5432'
 }
-
+# логгинг для бота чтобы узнать ошибки
 logging.basicConfig(filename='bot.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
+# токен подключения
 bot_token = "6801426896:AAEe_QBTudQG2xBjR408CTgKjemgsYdIJ2g"
 bot = telebot.TeleBot(bot_token)
 
+# словарь с пользователями
 user_data = {}
 
+# для проверки базу данных 
 def execute_query(query, values=None):
     conn = psycopg2.connect(**db_params)
     cursor = conn.cursor()
@@ -37,7 +45,7 @@ def execute_query(query, values=None):
         conn.close()
     return result
 
-
+# таблицы и тд
 conn = psycopg2.connect(**db_params)
 cur = conn.cursor()
 
@@ -61,7 +69,7 @@ conn.commit()
 
 
 
-
+# часть с кнопками и их функции
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def handle_start(message):
@@ -81,21 +89,6 @@ def show_registration_menu(message):
     markup.row(help_button, guide)
     bot.reply_to(message, 'Добро пожаловать! Чтобы начать, зарегистрируйтесь или войдите в профиль.', reply_markup=markup)
     user_data[message.chat.id] = {"step": "start"}
-
-# кнопка гайд
-@bot.message_handler(func=lambda message: message.text == 'Гайд')
-def handle_guide(message):
-    bot.reply_to(message, "хз че это")
-
-
-
-# Обработчик нажатия на кнопку "Регистрация пользователя"
-@bot.message_handler(func=lambda message: message.text == 'Регистрация пользователя')
-def handle_registration_start(message):
-    bot.reply_to(message, "Введите желаемый логин:")
-    user_data[message.chat.id] = {"step": "register_login"}
-
-
 
 # Показать меню входа# Показать меню входа
 def show_login_menu(message):
@@ -123,47 +116,6 @@ def show_login_menu(message):
     user_data[message.chat.id] = {"step": "login"}
 
 
-
-
-# функция для обработки команд неизвестных пользователем
-@bot.message_handler(func=lambda message: True)
-def handle_other(message):
-      bot.send_message(message.chat.id, "Я не понимаю эту команду.")
-
-# Кнопка тех поддержки
-@bot.message_handler(func=lambda message: message.text == 'Тех поддержка')
-def handle_help(message):
-    markup = types.InlineKeyboardMarkup()
-    admin_button = types.InlineKeyboardButton(text="ЛС с Админом", url="https://t.me/@kznzo")
-    support = types.InlineKeyboardButton(text="ЛС с Тех Поддержкой 1", url="https://t.me/@Gh_god")
-    chel = types.InlineKeyboardButton(text="ЛС с Тех поддержкой 2", url="https://t.me/@llosintll")
-    markup.add(admin_button)
-    markup.add(support)
-    markup.add(chel)
-    bot.reply_to(message, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
-
-
-
-
-# Обработчик выхода
-@bot.message_handler(func=lambda message: message.text == 'Выход')
-def handle_logout(message):
-    user_id = message.chat.id
-    if user_id in user_data:
-        del user_data[user_id]
-        bot.send_message(user_id, "Вы успешно вышли.")
-        # Выводим приветственное сообщение после выхода
-        markup = types.ReplyKeyboardMarkup()
-        reg = types.KeyboardButton('Регистрация пользователя')
-        help_button = types.KeyboardButton('Тех поддержка')
-        profile_button = types.KeyboardButton('Войти в профиль')
-        guide = types.KeyboardButton('Гайд')
-        markup.row(reg, profile_button)
-        markup.row(help_button, guide)
-        bot.send_message(user_id, 'Добро пожаловать! Чтобы начать, зарегистрируйтесь или войдите в профиль.', reply_markup=markup)
-    else:
-        bot.send_message(user_id, "Вы не вошли в аккаунт.")
-
 # Обработчик "Выйти на главное меню"
 @bot.message_handler(func=lambda message: message.text == 'Главное меню')
 def handle_main_menu(message):
@@ -189,7 +141,70 @@ def show_main_menu(message):
     markup.row(back_up)
     bot.send_message(message.chat.id, 'Главное меню:', reply_markup=markup)
 
+# Обработчик выхода
+@bot.message_handler(func=lambda message: message.text == 'Выход')
+def handle_logout(message):
+    user_id = message.chat.id
+    if user_id in user_data:
+        del user_data[user_id]
+        bot.send_message(user_id, "Вы успешно вышли.")
+        # Выводим приветственное сообщение после выхода
+        markup = types.ReplyKeyboardMarkup()
+        reg = types.KeyboardButton('Регистрация пользователя')
+        help_button = types.KeyboardButton('Тех поддержка')
+        profile_button = types.KeyboardButton('Войти в профиль')
+        guide = types.KeyboardButton('Гайд')
+        markup.row(reg, profile_button)
+        markup.row(help_button, guide)
+        bot.send_message(user_id, 'Добро пожаловать! Чтобы начать, зарегистрируйтесь или войдите в профиль.', reply_markup=markup)
+    else:
+        bot.send_message(user_id, "Вы не вошли в аккаунт.")
 
+# Каталог товаров
+@bot.message_handler(func=lambda message: message.text == 'Каталог товаров')
+def handle_catalog(message):
+    markup = types.ReplyKeyboardMarkup()
+    monitors = types.KeyboardButton('Мониторы')
+    motherboards = types.KeyboardButton('Материнские платы')
+    laptops = types.KeyboardButton('Ноутбуки')
+    personal_computers = types.KeyboardButton('Персональные компьютеры')
+    menu = types.KeyboardButton('Главное меню')
+    markup.row(monitors, motherboards)
+    markup.row(laptops, personal_computers)
+    markup.row(menu)
+    bot.send_message(message.chat.id, "Выберите категорию товаров:", reply_markup=markup)
+
+
+# Кнопка тех поддержки
+@bot.message_handler(func=lambda message: message.text == 'Тех поддержка')
+def handle_help(message):
+    markup = types.InlineKeyboardMarkup()
+    admin_button = types.InlineKeyboardButton(text="ЛС с Админом", url="https://t.me/@kznzo")
+    support = types.InlineKeyboardButton(text="ЛС с Тех Поддержкой 1", url="https://t.me/@Gh_god")
+    chel = types.InlineKeyboardButton(text="ЛС с Тех поддержкой 2", url="https://t.me/@llosintll")
+    markup.add(admin_button)
+    markup.add(support)
+    markup.add(chel)
+    bot.reply_to(message, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
+
+
+# кнопка гайд
+@bot.message_handler(func=lambda message: message.text == 'Гайд')
+def handle_guide(message):
+    markup = types.InlineKeyboardMarkup()
+    guide = types.InlineKeyboardButton(text="Гайд как с ним работать", url="https://www.youtube.com/watch?v=a_IhNWoATHA")
+    markup.add(guide)
+    bot.reply_to(message, "Вот видео как с ним работать", reply_markup=markup)
+
+
+
+
+# часть с входом и рега 
+# Обработчик нажатия на кнопку "Регистрация пользователя"
+@bot.message_handler(func=lambda message: message.text == 'Регистрация пользователя')
+def handle_registration_start(message):
+    bot.reply_to(message, "Введите желаемый логин:")
+    user_data[message.chat.id] = {"step": "register_login"}
 
 # Обработчик ввода логина при регистрации
 @bot.message_handler(func=lambda message: user_data.get(message.chat.id, {}).get("step") == "register_login")
@@ -284,19 +299,8 @@ def handle_start_after_login(message):
             bot.send_message(message.chat.id, 'Вы уже авторизованы. Используйте доступные опции.')
 
 
-# Вывод продуктов с базой данных
-def get_product_by_id(product_id):
-    query = "SELECT id, name, price FROM products  WHERE id = %s"
-    result = execute_query(query, (product_id,))
-    return result[0] if result else None
 
-# Исправим проверку наличия товара в избранном и корзине
-def is_product_in_list(product_id, cart, user_id):
-    for item in cart:
-        if item.get('id') == product_id and item.get('user_id') == user_id:
-            return True
-    return False
-
+# каталог товаров 
 # Материнские платы
 @bot.message_handler(func=lambda message: message.text == 'Материнские платы')
 def handle_motherboards(message):
@@ -365,33 +369,8 @@ def display_pc(chat_id):
         bot.send_message(chat_id, 'Товары не найдены')
 
 
-# Каталог товаров
-@bot.message_handler(func=lambda message: message.text == 'Каталог товаров')
-def handle_catalog(message):
-    markup = types.ReplyKeyboardMarkup()
-    monitors = types.KeyboardButton('Мониторы')
-    motherboards = types.KeyboardButton('Материнские платы')
-    laptops = types.KeyboardButton('Ноутбуки')
-    personal_computers = types.KeyboardButton('Персональные компьютеры')
-    menu = types.KeyboardButton('Главное меню')
-    markup.row(monitors, motherboards)
-    markup.row(laptops, personal_computers)
-    markup.row(menu)
-    bot.send_message(message.chat.id, "Выберите категорию товаров:", reply_markup=markup)
 
-
-# Функция избранное
-@bot.message_handler(func=lambda message: message.text == 'Избранные товары')
-def handle_favorites(message):
-    user_id = message.chat.id
-    cart = user_data.get(user_id, {}).get('Избранные товары', [])
-    if cart:
-        cart_info = "\n".join([f"ID товара: {product['id']}\nНазвание: {product['name']}\nЦена: {product['price']}\n" for product in cart])
-        bot.send_message(message.chat.id, "Избранные товары:\n" + cart_info)
-    else:
-        bot.send_message(message.chat.id, 'Избранные товары нету')
-
-
+# часть с корзиной и избранного 
 # Функция корзины
 @bot.message_handler(func=lambda message: message.text == 'Корзина')
 # Вывод корзины
@@ -409,6 +388,13 @@ def handle_cart(message):
     markup.add(button)
     bot.send_message(message.chat.id, "Если у вас проблемы, можете обращаться тут", reply_markup=markup)
 
+#  Добавление в корзину 
+@bot.message_handler(func=lambda message: message.text == 'Добавить в корзину')
+def handle_add_to_cart(message):
+    user_id = message.chat.id
+    bot.send_message(user_id, 'Введите ID товара для добавления в корзину:')
+    bot.register_next_step_handler(message, process_add_to_cart)
+# процесс добавления товара в корзину
 def process_add_to_cart(message):
     user_id = message.chat.id
     product_id = message.text.strip()
@@ -432,17 +418,6 @@ def process_add_to_cart(message):
         bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
 
 
-
-
-
-
-# Функция добавления в избранное
-@bot.message_handler(func=lambda message: message.text == 'Добавить в избранное')
-def handle_add_to_favorites(message):
-    user_id = message.chat.id
-    bot.send_message(message.chat.id, 'Введите ID товара для добавления в избранное:')
-    bot.register_next_step_handler(message, process_add_to_favorites)
-
 # Функция удаления из корзины
 def process_remove_from_cart(message):
     user_id = message.chat.id
@@ -460,8 +435,26 @@ def process_remove_from_cart(message):
 @bot.message_handler(func=lambda message: message.text == 'Удалить из корзины')
 def handle_remove_from_cart(message):
     bot.send_message(message.chat.id, 'Введите ID товара для удаления из корзины:')
-    bot.register_next_step_handler(message, process_remove_from_cart)
+    bot.register_next_step_handler(message, process_remove_from_cart)            
 
+
+# Функция избранное
+@bot.message_handler(func=lambda message: message.text == 'Избранные товары')
+def handle_favorites(message):
+    user_id = message.chat.id
+    cart = user_data.get(user_id, {}).get('Избранные товары', [])
+    if cart:
+        cart_info = "\n".join([f"ID товара: {product['id']}\nНазвание: {product['name']}\nЦена: {product['price']}\n" for product in cart])
+        bot.send_message(message.chat.id, "Избранные товары:\n" + cart_info)
+    else:
+        bot.send_message(message.chat.id, 'Избранные товары нету')
+
+# Функция добавления в избранное
+@bot.message_handler(func=lambda message: message.text == 'Добавить в избранное')
+def handle_add_to_favorites(message):
+    user_id = message.chat.id
+    bot.send_message(message.chat.id, 'Введите ID товара для добавления в избранное:')
+    bot.register_next_step_handler(message, process_add_to_favorites)
 
 # Процедура добавления в избранное
 def process_add_to_favorites(message):
@@ -484,6 +477,7 @@ def process_add_to_favorites(message):
     else:
         bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
 
+
 # Функция удаления из избранного
 def process_remove_from_favorites(message):
     user_id = message.chat.id
@@ -503,14 +497,8 @@ def handle_remove_from_favorites(message):
     bot.send_message(message.chat.id, 'Введите ID товара для удаления из избранного:')
     bot.register_next_step_handler(message, process_remove_from_favorites)
 
-#  Добавление в корзину 
-@bot.message_handler(func=lambda message: message.text == 'Добавить в корзину')
-def handle_add_to_cart(message):
-    user_id = message.chat.id
-    bot.send_message(user_id, 'Введите ID товара для добавления в корзину:')
-    bot.register_next_step_handler(message, process_add_to_cart)
 
-
+# функция для вывода всез товаров с айди до цены
 def display_catalog(chat_id):
     query = "SELECT id, name, price FROM products"
     products = execute_query(query)
@@ -519,6 +507,21 @@ def display_catalog(chat_id):
         bot.send_message(chat_id, catalog_info)
     else:
         bot.send_message(chat_id, 'Товары не найдены')
+
+# Вывод продуктов с базой данных
+def get_product_by_id(product_id):
+    query = "SELECT id, name, price FROM products  WHERE id = %s"
+    result = execute_query(query, (product_id,))
+    return result[0] if result else None
+
+# Исправим проверку наличия товара в избранном и корзине
+def is_product_in_list(product_id, cart, user_id):
+    for item in cart:
+        if item.get('id') == product_id and item.get('user_id') == user_id:
+            return True
+    return False
+
+
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True) 
